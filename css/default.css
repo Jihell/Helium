@@ -1,0 +1,117 @@
+/* 
+    Document   : default
+    Created on : 15 juil. 2011, 23:35:09
+    Author     : joseph Lemoine - lemoine.joseph@gmail.com
+    Description:
+        Purpose of the stylesheet follows.
+*/
+
+header, nav, footer, #content
+{
+	width: 960px;
+	margin: 0 auto;
+}
+header
+{
+	margin-top: 25px;
+	margin-bottom: 10px;
+	min-height: 100px;
+}
+nav
+{
+	border-top: 1px solid #999;
+	border-bottom: 1px solid #999;
+}
+nav ul
+{
+	padding: 0px;
+	margin: 0px;
+}
+nav ul li
+{
+	display: inline-block;
+	list-style-type: none;
+	padding: 10px 15px;
+	font-weight: bold;
+	cursor: pointer;
+}
+nav ul li:hover
+{
+	background: #ccc;
+}
+#content
+{
+	margin-top: 10px;
+	min-height: 550px;
+}
+footer
+{
+	border-top: 1px solid #999;
+	padding: 5px;
+}
+
+/*
+FORMULAIRES
+*/
+.form_submit
+{
+	display: inline-block;
+	margin: 0 auto;
+	border: 1px solid #eee;
+	padding: 2px 5px;
+	font-weight: bold;
+	text-align: center;
+	width: auto;
+	-webkit-border-radius: 5px;
+	-moz-border-radius: 5px;
+	border-radius: 5px;
+	cursor: pointer;
+	background: #555559;
+}
+.form_submit:hover
+{
+	background: #88888d;
+}
+
+/*
+INFOBULLES
+*/
+.infoBulle
+{
+	color: #fff;
+	background: rgba(0,0,0,0.8);
+	display: none; 
+	position: absolute; 
+	top: 0px; 
+	left: 0px; 
+	min-height: 30px; 
+	padding: 5px; 
+	width: 250px; 
+	overflow: visible;
+	-moz-border-radius: 5px;
+	-webkit-border-radius: 5px;
+	-o-border-radius: 5px;
+	border-radius: 5px;
+}
+
+.overlay_box table
+{
+	border-collapse: collapse;
+}
+.overlay_box table th
+{
+	font-weight: bold;
+	background: #fff;
+}
+.overlay_box table tbody
+{
+	text-align: left;
+}
+.overlay_box table tbody tr:nth-child(2n+1)
+{
+	background: #eee;
+}
+.overlay_box table tbody tr:nth-child(2n)
+{
+	background: #ddd;
+}

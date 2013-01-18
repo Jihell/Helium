@@ -1,0 +1,24 @@
+{node::suPanel}
+<div id="HeSuBar">
+	<div class="HeSubBG">
+		<div id="HeSuButton"></div>
+		<div id="HeSuPanel">
+			<div id="HeSuTitle">He - Helium Engine</div>
+			<h4>Panneau de controle superadmin</h4>
+			<ul>
+				<li class="infoTrigger" info="Affiche les logs de génération de cette page" id="HeSuTrace"></li>
+				<li class="infoTrigger ajaxCall" info="Vide le cache des DAO, en cas d'incohérence avec la base de donnée." action="he/ajax/getDAOList" callback="openOverlay(msg);" id="HeSuFlushDAO"></li>
+				<li class="infoTrigger ajaxCall" info="Vide le cache du générateur de template" action="he/ajax/getCacheList" callback="openOverlay(msg);" id="HeSuFlushCache"></li>
+				<li class="infoTrigger" info="Lance la pré-compilation des controleurs" id="HeSuCompile"></li>
+				<li class="infoTrigger" info="Gestion des utilisateur" id="HeSuUsers"></li>
+				<li class="infoTrigger" info="Gestion des droits d'accès" id="HeSuRoles"></li>
+				<li class="infoTrigger ajaxCall" info="Logs de connection du super admin" action="he/ajax/getSuLog" callback="openOverlay(msg);" id="HeSuLastCo"></li>
+				<li class="infoTrigger" info="Outil de localisation" id="HeSuLoc"></li>
+				<li class="infoTrigger" info="Traduire une chaine de caractère en MD5" id="HeSuMD5"></li>
+				<li class="infoTrigger" info="Se déconnecter du compte super user" id="HeSuQuit"><form action="he/ajax/logout" method="post" callback="location.reload();"></form></li>
+			</ul>
+		</div>
+	</div>
+</div>
+<script type="text/javascript" src="js/he/handler/su.js"></script>
+{/node::suPanel}

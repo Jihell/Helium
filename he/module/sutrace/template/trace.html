@@ -1,0 +1,140 @@
+{node::trace}
+<div id="HeCallstack"{$forceDisplay}>
+	{node::bench}
+	<ul>
+		<li class="ajaxCall" 
+			action="he/ajax/sutrace"
+			data="id={$previd}" 
+			callback="replaceTrace(msg);"><img src="img/fleche-left-32x32.png" /></li>
+		<li>{$id}</li>
+		<li class="ajaxCall" 
+			action="he/ajax/sutrace"
+			data="id={$nextid}" 
+			callback="replaceTrace(msg);"><img src="img/fleche-right-32x32.png" /></li>
+	</ul>
+	<h4>Page appelé</h4>
+	<p>{$requestedUri}</p>
+	<h4>Statistiques</h4>
+	<table>
+		<thead>
+			<tr>
+				<th><img src="img/database-32x32.png" title="Nombre de requètes" /></th>
+				<th><img src="img/chrono-32x32.png" title="Durée totale d'exécution" /></th>
+				<th><img src="img/ram-32x32.png" title="Utilisation maximum de la mémoire" /></th>
+			</tr>
+		</thead>
+		<tbody>
+			<tr>
+				<td>{$queryCount} requète(s)</td>
+				<td>{$totalTime} ms</td>
+				<td>{$maxRam} Mo</td>
+			</tr>
+		</tbody>
+	</table>
+	{/node::bench}
+	<h4>Traces</h4>
+	<ul class="HeCallstackCat">
+		<li rel="HeTraceTous">Tous</li>
+		<li rel="HeTraceBdd">Bdd</li>
+		<li rel="HeTraceDispatcher">Dispatcheur</li>
+		<li rel="HeTraceSession">Session</li>
+		<li rel="HeTraceCookie">Cookies</li>
+	</ul>
+	<table class="HeCallStackSequence" id="HeTraceTous">
+		<thead>
+			<tr>
+				<th>Time (ms)</th>
+				<th>PrevTrace (ms)</th>
+				<th>RAM (Mo)</th>
+				<th>Type</th>
+				<th>Message</th>
+			</tr>
+		</thead>
+		<tbody>
+			{node::traceTous}
+			<tr style="background: rgba({$degre},0.2);">
+				<td>{$time}</td>
+				<td>{$between}</td>
+				<td>{$ram}</td>
+				<td>{$type}</td>
+				<td style="text-align: left;">{$msg}</td>
+			</tr>
+			{/node::traceTous}
+		</tbody>
+	</table>
+	<table class="HeCallStackSequence" id="HeTraceBdd">
+		<thead>
+			<tr>
+				<th>Time (ms)</th>
+				<th>PrevTrace (ms)</th>
+				<th>RAM (Mo)</th>
+				<th>Message</th>
+			</tr>
+		</thead>
+		<tbody>
+			{node::traceBdd}
+			<tr style="background: rgba({$degre},0.2);">
+				<td>{$time}</td>
+				<td>{$between}</td>
+				<td>{$ram}</td>
+				<td style="text-align: left;">{$msg}</td>
+			</tr>
+			{/node::traceBdd}
+		</tbody>
+	</table>
+	<table class="HeCallStackSequence" id="HeTraceDispatcher">
+		<thead>
+			<tr>
+				<th>Time (ms)</th>
+				<th>PrevTrace (ms)</th>
+				<th>RAM (Mo)</th>
+				<th>Message</th>
+			</tr>
+		</thead>
+		<tbody>
+			{node::traceDispatcher}
+			<tr style="background: rgba({$degre},0.2);">
+				<td>{$time}</td>
+				<td>{$between}</td>
+				<td>{$ram}</td>
+				<td style="text-align: left;">{$msg}</td>
+			</tr>
+			{/node::traceDispatcher}
+		</tbody>
+	</table>
+	<table class="HeCallStackSequence" id="HeTraceSession">
+		<thead>
+			<tr>
+				<th>Nom</th>
+				<th>Valeur</th>
+			</tr>
+		</thead>
+		<tbody>
+			{node::traceSession}
+			<tr style="background: rgba({$degre},0.2);">
+				<td>{$name}</td>
+				<td style="text-align: left;">{$value}</td>
+			</tr>
+			{/node::traceSession}
+		</tbody>
+	</table>
+	<table class="HeCallStackSequence" id="HeTraceCookie">
+		<thead>
+			<tr>
+				<th>Nom</th>
+				<th>Valeur</th>
+			</tr>
+		</thead>
+		<tbody>
+			{node::traceCookie}
+			<tr style="background: rgba({$degre},0.2);">
+				<td>{$name}</td>
+				<td style="text-align: left;">{$value}</td>
+			</tr>
+			{/node::traceCookie}
+		</tbody>
+	</table>
+	<div id="HeCallStackClose"></div>
+</div>
+<script type="text/javascript" src="js/he/handler/trace.js"></script>
+{/node::trace}

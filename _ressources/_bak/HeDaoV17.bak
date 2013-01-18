@@ -1,0 +1,724 @@
+<?php
+/**
+* Class d'abstraction de base de donnée
+* Liste les colonnes d'une table de donnée puis crée une variable par colonne
+* @author: Joseph Lemoine - lemoine.joseph@gmail.com
+* @version: 17
+*/
+class HeDao
+{
+	/**
+	 * Liste des références vers les objets déjà instanciés
+	 * @var array	[$_bdd][$_table][$column][$id] = &static()
+	 */
+	protected static $_instances = array();
+	
+	/**
+	 * Liste des lignes dans une colonne
+	 * @var array	[$_bdd][$_table][$selector][$order][$limit][$id] = &static()
+	 */
+	protected static $_colInstances = array();
+	
+	/**
+	 * Liste des objets PDOStatement de récupération de données
+	 * @var array	[$_bdd][$_table] = PDOStatement
+	 */
+	protected static $_PDO_DaoGet = array();
+	
+    /**
+     * Liste des objet PDOStatement de sauvegarde de données
+     * @var	array	[$table] = PDO::Prepare)
+     */
+    protected static $_PDO_DaoSave = array();
+	
+	/**
+	 * Liste des données à sauvegarder au destruct
+	 * @var array
+	 */
+	protected static $_pending_storage = array();
+
+    /**
+     * Liste des colonnes de la table
+     * @var	array   [table][Numéro] = $nom
+     */
+    protected static $_colist = array();
+	
+    /**
+     * Liste des colonnes de la table
+     * @var	array   [table][$nom] = $type
+     */
+    protected static $_nameColist = array();
+	
+	/**
+	 * Nom de la clef primaire
+	 * @var string 
+	 */
+	protected static $_primary = "";
+	
+    /**
+     * Nom de la base de donnée liée
+     * @var     string
+     */
+    protected static $_bdd = DEF_BASE;
+
+    /**
+     * Nom de la table
+     * @var     string
+     */
+    protected static $_table = "";
+
+	/**
+	 * Liste des données chargées depuis la BDD
+	 * @var array
+	 */
+	protected $_data = array();
+	
+	/**
+	 * Liste des jointures
+	 * @var array [table] => collist position
+	 */
+	protected static $_join = array();
+
+    /**
+     * Constructeur de class
+	 * sauvegarde les paramètre de bdd / table et lecture seule
+     * Récupère et crée les variables de la table associé.
+     * @return	bool	true si le listing est ok, sinon false;
+     * @access	public
+     */
+    protected function __construct()
+	{
+		if(!empty(static::$_table)) {
+			$this->_extractCols();
+
+			return true;
+		}else{
+			return false;
+		}
+    }
+	
+	/**
+	 * Interdiction de cloner
+	 */
+	private function __clone() {}
+	
+	/**
+	 * Créer une instance ou récupère le sigleton correspondant à la ligne 
+	 * dans la base de donnée
+	 * @param mixed $id
+	 * @param string $column
+	 * @param string $selector
+	 * @param string $order
+	 * @return static()
+	 */
+	public static function row($id = null, $column = null, $selector = null, $order = null)
+	{
+		/* Création de la liste des colonnes le cas échéant */
+		static::_listCols();
+		
+		/* Attribution du nom de colonne si vide */
+		if(empty($column))
+			$column = static::$_primary[static::$_bdd][static::$_table]["field"];
+		
+		/* Si on a bien un ID spécifié, on recherche la ligne correspondante */
+		if(!empty($id))
+		{
+			/* Appel de la nouvelle instance en singleton */
+			if(empty(static::$_instances[static::$_bdd][static::$_table][$column][$id]))
+			{
+				static::$_instances[static::$_bdd][static::$_table][$column][$id] = new static();
+				static::$_instances[static::$_bdd][static::$_table][$column][$id]->_load($id, $column, $order, $selector);
+			}
+		
+			return static::$_instances[static::$_bdd][static::$_table][$column][$id];
+		}
+		/* Sinon on crée un objet générique qu'on ne sauvegarde pas en static */
+		else
+		{
+			if(empty(static::$_instances[static::$_bdd][static::$_table]["mi"][-1]))
+			{
+				static::$_instances[static::$_bdd][static::$_table]["mi"][-1] = new static();
+				static::$_instances[static::$_bdd][static::$_table]["mi"][-1]->_load();
+			}
+			
+			return static::$_instances[static::$_bdd][static::$_table]["mi"][-1];
+		}
+	}
+	
+	/**
+	 * Récupère la liste des ID correspondant aux variable envoyés, puis
+	 * renvois un tableau de référence vers les objets DAO correspondant.
+	 * @param	string	$selector	La clause WHERE de la requète
+	 * @param	string	$order		La clause ORDER BY de la requète
+	 * @param	string	$limit		La clause LIMIT de la requète
+	 * @return	Array	si échec renvois false
+	 */
+	public static function col($selector = null, $order = null, $limit = null)
+	{
+		HeTrace::addTrace("Appel d'une colonne, sélecteur :".$selector, get_called_class());
+		/* Création de la liste des colonnes le cas échéant */
+		static::_listCols();
+		
+		if(!empty(static::$_primary[static::$_bdd][static::$_table]))
+		{
+			$order = empty($order) ? static::$_primary[static::$_bdd][static::$_table]["field"] : $order;
+			$limit = empty($limit) ? 0 : $limit;
+			$selector = empty($selector) ? 0 : $selector;
+			
+			$storArray = &static::$_colInstances[static::$_bdd][static::$_table][$selector][$order][$limit];
+			
+			if(empty($storArray))
+			{
+				$sql = "SELECT ".static::_sqlListOfVar()
+					." FROM ".static::$_table
+					.(!empty($selector) ? " WHERE ".$selector : "")
+					." ORDER BY ".$order
+					.(!empty($limit) ? " LIMIT ".$limit : "");
+
+				try
+				{
+					$sth = HePDO::getInstance()->prepare($sql);
+					$sth->execute();
+				}
+				catch (PDOException $e)
+				{
+					throw new Exception($e->getMessage());
+				}
+				
+				HeTrace::addTrace("Analyse des résultas", get_called_class());
+				/* Chargement du tableau de ligne */
+				
+				$pkName = &static::$_primary[static::$_bdd][static::$_table]["field"];
+				foreach($sth->fetchAll(PDO::FETCH_ASSOC) AS $row => $data)
+				{
+					$instance = &static::$_instances[static::$_bdd][static::$_table][$pkName][$data[$pkName]];
+
+					if(empty($instance))
+					{
+						/* Création de la nouvelle instance */
+						$instance = new static();
+						
+						/* Insertion de ses valeurs à la bourrin */
+						$instance->_data = $data;
+					}
+
+					/* Préparation du tableau de renvoi */
+					$storArray[$data[$pkName]] = $instance;
+				}
+				
+				unset($sth);
+			}
+			
+			HeTrace::addTrace("Résultas renvoyés ", get_called_class());
+			if(count($storArray) > 0)
+				return $storArray;
+			else
+				return false;
+		}
+		else
+			return false;
+	}
+	
+	/**
+	 * Compte le nombre de ligne correspondant au sélecteur envoyés
+	 * @param	string	$selector	Clause WHERE de la requète SQL
+	 * @return	int
+	 */
+	public static function count($selector = null)
+	{
+		/* Création de la liste des colonnes le cas échéant */
+		static::_listCols();
+		
+		$sql = "SELECT COUNT(".static::$_primary[static::$_bdd][static::$_table]["field"].") 
+			FROM ".static::$_table
+			.(!empty($selector) ? " WHERE ".$selector : "");
+		
+		try
+		{
+			$sth = HePDO::getInstance()->prepare($sql);
+			$sth->execute();
+		}
+		catch (PDOException $e)
+		{
+			throw new Exception($e->getMessage());
+		}
+		
+		return $sth->fetchColumn();
+	}
+	
+	/**
+	 * Joint les informations d'une colonne commençant par "id" 
+	 * à la table correspondante
+	 */
+	public function join($table)
+	{
+		$table = strtolower($table);
+		
+		if(isset(static::$_join[static::$_bdd][static::$_table][$table]))
+		{
+			$joinOn = "id_".$table;
+			$table = ucfirst(strtolower($table));
+			return $table::row($this->$joinOn);
+		}
+		else
+		{
+			throw new Exception("Jointure innexistante vers ".$table."!");
+		}
+	}
+	
+	/**
+	 * Renvoi la valeur de la variable appelée en prenant en compte le surtypage
+	 * @param	string	$name	Nom de la variable à récupérer
+	 * @return	mixed			NULL si la variable n'exite pas sinon sa valeur
+	 */
+	public function __get($name)
+	{
+		if(static::$_nameColist[static::$_bdd][static::$_table][$name])
+		{
+			if(!is_object($this->_data[$name]))
+				$this->_data[$name] = HeCast::build(static::$_nameColist[static::$_bdd][static::$_table][$name], $this->_data[$name]);
+			
+			return $this->_data[$name]->export();
+		}
+		else
+		{
+			return NULL;
+		}
+	}
+	
+	/**
+	 * Recherche et définie dans _data les valeur à enregistrer dans l'objet
+	 * @param string	$name	Nom de la variable
+	 * @param mixed		$value	Valeur de la variable
+	 */
+	public function __set($name, $value)
+	{
+		/* Si on donne un ID à notre class, on la rajoute à la liste des instances */
+		if($name == static::$_primary[static::$_bdd][static::$_table]["field"])
+			static::$_instances[static::$_bdd][static::$_table][static::$_primary["field"]][$value] = $this;
+		
+		/* Si cette variable est bien en BDD */
+		if(static::$_nameColist[static::$_bdd][static::$_table][$name])
+		{
+			if(!is_object($this->_data[$name]))
+				$this->_data[$name] = HeCast::build(static::$_nameColist[static::$_bdd][static::$_table][$name], $this->_data[$name]);
+			
+			/* Attribution de la valeur */
+			$this->_data[$name]->set($value);
+		}
+		else
+		{
+			/* Si la variable n'existe pas */
+			throw new Exception("Impossible de donner la valeur '".$value."' car la colonne '".$name."' n'existe pas :".print_r($this->_data,1)."!");
+		}
+	}
+	
+	/**
+	 * Retourne la class correspodnant à la valeur demandé, sert uniquement au 
+	 * surtypage des colonnes
+	 * @param string	$name
+	 * @param array		$arguments
+	 */
+	public function __call($name, $arguments)
+	{
+		return $this->_data[$name];
+    }
+	
+	/**
+	 * Liste les colonnes de la class
+	 */
+	protected static function _listCols()
+	{
+		if (empty(static::$_colist[static::$_bdd][static::$_table]))
+		{
+			HeTrace::addTrace("Linsting des colonnes", get_called_class());
+			$colist = HePDO::getInstance(static::$_bdd)->query("SHOW COLUMNS FROM ".static::$_table)->fetchAll();
+
+			$nbCol = 0;
+			foreach ($colist AS $data)
+			{
+				/* Si on a récupéré la clef primaire, on la sauvegarde */
+				if($data[3] == "PRI")
+				{
+					static::$_primary[static::$_bdd][static::$_table]["field"] = $data[0];
+					static::$_primary[static::$_bdd][static::$_table]["row"] = $nbCol;
+				}
+				
+				/* Si le nom de la colonne commence par id on mémorise la jointure */
+				if(strtolower(substr($data[0], 0, 2)) == "id")
+				{
+					static::$_join[static::$_bdd][static::$_table][substr($data[0], 3)] = $nbCol;
+				}
+
+				/* Liste des variable récupéré */
+				static::$_colist[static::$_bdd][static::$_table][$nbCol]["field"] = $data[0];
+				static::$_colist[static::$_bdd][static::$_table][$nbCol]["type"] = $data[1];
+				static::$_nameColist[static::$_bdd][static::$_table][$data[0]] = $data[1];
+				$nbCol++;
+			}
+		}
+	}
+	
+    /**
+     * Extrait les colonnes de la table nommée
+     * @param	string	$table  Nom de la table à lister
+     * @return	bool		true si le listing est ok, sinon false. Les
+     *				données sont indexés dans $_colist
+     * @access	protected
+     */
+    protected function _extractCols()
+	{
+		foreach(static::$_colist[static::$_bdd][static::$_table] AS $row => $name)
+//			$this->_data[$name["field"]] = HeCast::build($name["type"]);
+			$this->_data[$name["field"]] = 0;
+    }
+
+    /**
+     * Méthode de récuparation des valeurs d'une ligne
+     * Sauvegarde de l'adresse de la ligne dans une variable pour
+     * la passe d'exportation lors de la destruction de la class
+     * Les données récupérés sont stockés afin de ne pas refaire une requète si
+     * le même identifiant est demandé plus tard dans le code (sauf rechargement
+     * forcé)
+     * @Param	int	    $id		    Identifiant de la ligne à récupérer
+     * @param	string	    $column	    Nom de la colonne où cherche l'ID
+     * @param	string	    $column	    Nom de la colonne où effectuer un tri
+     * @param	string		$selector	Ligne(s) de tri suplémentaire(s)
+     * @return	bool
+     */
+    protected function _load($id = null, $column = null, $order = null, $selector = null)
+	{
+		/* Si on à spécifié un ID, on liste les valeurs de cette ligne, sinon c'est un nouveau */
+		if ($id)
+		{
+			$column = (empty($column) ? static::$_primary[static::$_bdd][static::$_table]["field"] : $column);
+			$order = (empty($order) ? static::$_primary[static::$_bdd][static::$_table]["field"] : $order);
+			
+			$sth = $this->_prepareLoad($column, $selector);
+			/* Exécution de la requète préparée */
+			if($sth->execute(array(':id' => $id, ':order' => $order)))
+			{
+				foreach($sth->fetchAll(PDO::FETCH_ASSOC) AS $row => $val)
+					$this->_data = $val;
+			}
+			else
+			{
+				$this->_data[$column] = $id;
+				return false;
+			}
+		}
+		else
+		{
+			return true;
+		}
+    }
+
+    /**
+     * Création d'une requète préparé pour sauvegarder les enfants de Dao
+     * @return objet   PDO::Prepare
+     * @access protected
+     */
+    protected function _prepareLoad($column, $selector)
+	{
+		if(!static::$_PDO_DaoGet[static::$_bdd][static::$_table][$column][$selector])
+		{
+			HeTrace::addTrace("Création de la raquète préparée de chargement d'ID", get_called_class());
+			/* Création de la requète préparé de chargement */
+			$sql = "SELECT "
+				.$this->_sqlListOfVar(false)
+				." FROM ".static::$_table
+				." WHERE ".$column." = :id "
+					.$selector
+				." ORDER BY :order DESC LIMIT 0,1";
+
+			/* Exécution et récupération de la ligne*/
+			static::$_PDO_DaoGet[static::$_bdd][static::$_table][$column][$selector] = HePDO::getInstance(static::$_bdd)->prepare($sql);
+		}
+		
+		return static::$_PDO_DaoGet[static::$_bdd][static::$_table][$column][$selector];
+    }
+
+    /**
+     * Création d'une requète préparé pour sauvegarder les enfants de Dao
+     * @return objet   PDO::Prepare
+     * @access protected
+     */
+    protected function _prepare_save()
+	{
+		if(!static::$_PDO_DaoSave[static::$_bdd][static::$_table])
+		{
+			HeTrace::addTrace("Création de la raquète préparée de sauvegarde", get_called_class());
+			/* Création de la requète préparé de sauvegarde */
+			$sql = "REPLACE INTO ".static::$_table." VALUES (".static::_sqlListOfVar(true).");";
+	
+			static::$_PDO_DaoSave[static::$_bdd][static::$_table] = HePDO::getInstance(static::$_bdd)->prepare($sql);
+		}
+		
+		return static::$_PDO_DaoSave[static::$_bdd][static::$_table];
+    }
+	
+	/**
+	 * Renvoit une chaine exploitable pour les appel à la base de donnée
+	 * @param	bool	$bind	Pour ajouter ou non ":" afinde préparer la sauvagerde
+	 * @return	string			Liste des variable sous forme v1, v2, v3 ... vN
+	 */
+	protected static function _sqlListOfVar($bind = false)
+	{
+		foreach(static::$_colist[static::$_bdd][static::$_table] AS $row => $name)
+			$sql .= ($bind ? ":" : "").$name["field"].", ";
+		
+		return substr($sql, 0, -2);
+	}
+
+    /**
+     * Méthode d'effacement d'une ligne
+     * @param	$id	int	Identifiant de la ligne à effacer
+     * @return	bool	true	Action effectuée
+     * @access	public
+     */
+    public function delete($id = NULL)
+	{
+		HeTrace::addTrace("Supression de la ligne ".$id, get_called_class());
+		
+		/* On suppprime cette ligne */
+		if(empty($id))
+			$idToDel = $this->id;
+		else
+			$idToDel = $id;
+
+		$sql = "DELETE FROM ".static::$_table
+			. " WHERE ".static::$_primary[static::$_bdd][static::$_table]["field"]." = '".$idToDel."'";
+
+		/* Exécution */
+		HePDO::getInstance(static::$_bdd)->query($sql);
+
+		/* Si on à pas spécifié d'ID, c'est qu'on supprime cet objet */
+		if(empty($id)) {
+			/* Cet objet ne sera pas sauvegardé */
+			unset($this);
+		}
+
+		return true;
+    }
+    
+    /**
+     * Méthode static pour effacer une ligne
+     * @param	int	$id	Identifiant de la ligne à effacer
+     * @return	bool
+     * @access	public
+     * @static
+     */
+    public static function del($id = NULL)
+	{
+		HeTrace::addTrace("Supression en static de la ligne ".$id, get_called_class());
+    	if(!empty($id)) {
+    		/* Ecriture de la requète */
+    		$sql = "DELETE FROM ".static::$_table
+				. " WHERE ".static::$_colist[0]["field"]." = '".$id."'";
+	
+			/* Exécution */
+			if(HePDO::getInstance(static::$_bdd)->query($sql))
+				return true;
+			else
+				return false;
+    	} else {
+    		return false;
+    	}
+    }
+
+    /**
+     * Liste les variables de l'objet dans un tableau
+     * Syntaxe faite pour PDO::Prepare
+     * @return: array   (nomVariable => valeur)
+     * @access: protected
+     */
+    protected function _listeVariable()
+	{
+		/* Listing des variables dans l'ordre */
+		foreach(static::$_colist[static::$_bdd][static::$_table] AS $row => $name)
+		{
+		    /* Données à envoyer */
+		    $liste[":".$name["field"]] = $this->$name["field"];
+		}
+	
+		return $liste;
+    }
+
+    /**
+     * Liste les variables de l'objet dans un tableau
+     * Syntaxe faite pour PDO::Prepare
+     * @return: array   (nomVariable => valeur)
+     * @access: protected
+     */
+    protected function _listeValues()
+	{
+		/* Listing des variables dans l'ordre */
+		foreach(static::$_colist[static::$_bdd][static::$_table] AS $row => $name)
+		{	
+		    /* Données à envoyer */
+			if(!$this->$name["field"])
+				$send .= "NULL,";
+			else
+				$send .= "'".$this->$name["field"]."',";
+		}
+		$send = "(".substr($send,0,-1).")";
+	
+		return $send;
+    }
+	
+	/**
+	 * Vide le contenue de cet objet
+	 */
+	protected function _flush()
+	{
+		foreach(static::$_colist[static::$_bdd][static::$_table] AS $row => $name)
+		    $this->$name["field"] = 0;
+	}
+
+    /**
+     * Fonction de sauvegarde des objets ayant été chargé / créer avec _load()
+     * SEULEMENT SI L'OBJET N'EST PAS EN LECTURE SEULE !
+     * Ou qu'on force la sauvegarde avec le paramètre
+     * @param	bool	$forceSave  Si true, force la sauvegarde
+     * @return	int	Nombre d'enregistrements
+     * @access	protected
+     */
+    protected function _save()
+	{
+		/* Sauvegarde de lui même */
+		try
+		{
+			/* Récupération de la variable de référence */
+			$rowOfReference = static::$_primary[static::$_bdd][static::$_table]["field"];
+
+			/* Enchainement a commiter */
+			HePDO::getInstance(static::$_bdd)->beginTransaction();
+
+			$nb_row_affected = $this->_prepare_save()->execute($this->_listeVariable());
+			$lastInsertId = HePDO::getInstance(static::$_bdd)->lastInsertId();
+			if(!empty($lastInsertId))
+			{
+				$this->_data[$rowOfReference]->set($lastInsertId);
+				/* Ajout à la liste des références d'objets */
+				static::$_instances[static::$_bdd][static::$_table][static::$_primary[static::$_bdd][static::$_table]["field"]][$lastInsertId] = $this;
+				unset(static::$_instances[static::$_bdd][static::$_table]["mi"]);
+			}
+
+			HeTrace::addTrace("Commit de la sauvegarde ...", get_called_class());
+			HePDO::getInstance(static::$_bdd)->commit();
+			HeTrace::addTrace("Sauvegarde exécutée", get_called_class());
+			return $nb_row_affected;
+		}
+		catch (PDOException $e)
+		{
+			HePDO::getInstance(static::$_bdd)->rollBack();
+			echo "Impossible de sauver l'objet !".$e->getMessage();
+			exit();
+		}
+    }
+    
+    /**
+     * Fonction de sauvegarde publique, force l'enregistrement même en lecture seule
+	 * @param	bool	$mass_storage	Force l'enregistrement en mass insert
+     * @return	int		Nombre d'enregistrements
+     */
+    public function stor($mass_storage = false)
+	{
+		if($mass_storage)
+		{
+			if(!empty(static::$_pending_storage[static::$_bdd][static::$_table]))
+				static::$_pending_storage[static::$_bdd][static::$_table] .= ",";
+			
+			static::$_pending_storage[static::$_bdd][static::$_table] .= $this->_listeValues();
+			
+			$this->_flush();
+		}
+		else
+		{
+			$entry = $this->_save(true);
+
+			if(empty($entry))
+				return false;
+			else
+				return true;
+		}
+    }
+	
+	/**
+	 * Vide le cache du stockage de masse via une requète d'insert dans la table
+	 * @return bool
+	 */
+	public function massStorage()
+	{
+		if(!empty(static::$_pending_storage[static::$_bdd][static::$_table]))
+		{
+			/* Sauvegarde des requètes en attente */
+			try
+			{
+				/* Enchainement a commiter */
+				HePDO::getInstance(static::$_bdd)->beginTransaction();
+
+				$sql = "REPLACE INTO ".static::$_table." VALUES"
+						.static::$_pending_storage[static::$_bdd][static::$_table].";";
+				
+				HePDO::getInstance(static::$_bdd)->prepare($sql)->execute();
+				
+				HeTrace::addTrace("Commit de la sauvegarde de masse ...", get_called_class());
+				HePDO::getInstance(static::$_bdd)->commit();
+				HeTrace::addTrace("Sauvegarde exécutée", get_called_class());
+				
+				/* On vide la liste des inserts */
+				static::$_pending_storage[static::$_bdd][static::$_table] = NULL;
+				
+				return true;
+			}
+			catch (PDOException $e)
+			{
+				HePDO::getInstance(static::$_bdd)->rollBack();
+				throw new Exception("Impossible d'exécuter la sauvegarde de masse : <br/>".$sql." <p>".$e->getMessage()."</p>");
+			}
+		}
+		else
+		{
+			return false;
+		}
+	}
+
+
+    /**
+     * Destructeur de class, envoie les instructions de sauvegarde, attention 
+	 * les messages de HeTrace ne sont pas pris en compte ici
+     */
+    public function  __destruct()
+	{
+		$this->massStorage();
+	}
+
+    /**
+     * ===================================================================
+     * =========================     DEBUG    ============================
+     * ===================================================================
+     */
+	
+	public function getData()
+	{
+		echo "<pre>";
+		print_r($this->_data);
+		echo "</pre>";
+	}
+	
+
+	public function getCols()
+	{
+		echo "<pre>";
+		print_r(static::$_colist[static::$_bdd][static::$_table]);
+		echo "</pre>";
+	}
+	
+	public static function listInstances()
+	{
+		echo "<pre>";
+		print_r(static::$_instances[static::$_bdd][static::$_table]);
+		echo "</pre>";
+	}
+}

@@ -1,0 +1,77 @@
+<form action="" method="POST">
+	<table>
+		<thead>
+		</thead>
+		<tbody>{*
+			<tr>
+				<td>Mail</td>
+				<td colspan="3"><input name="mail" type="mail" required /></td>
+			</tr>
+			<tr>
+				<td>commentaire</td>
+				<td colspan="3"><textarea name="testarea" maxlength="1000"></textarea></td>
+			</tr>
+			<tr>
+				<td>Test profondeur</td>
+				<td><input type="text" name="deep[deeper][deepest]" maxlength="1000" required /></td>
+				<td><input type="text" name="deep[deeper][otherdeepest]" maxlength="1000" required /></td>
+				<td><input type="text" name="deep[deeper][anotherdeepest]" maxlength="1000" required /></td>
+			</tr>
+			<tr>
+				<td>Test tel</td>
+				<td colspan="3"><input type="tel" name="testtel" value="" required /></td>
+			</tr>
+			<tr>
+				<td>Test select</td>
+				<td>
+					<select name="testselect[]" multiple required>
+						<option value="">Select</option>
+						<option value="1">A</option>
+						<option value="2">B</option>
+						<option value="3">C</option>
+					</select>
+				</td>
+			</tr>
+			<tr>
+				<td>Test radio</td>
+				<td>
+					<input type="radio" name="testradio" value="bang" />
+					<input type="radio" name="testradio" value="cuir" />
+					<input type="radio" name="testradio" value="moustache" />
+					<input type="radio" name="testradio" value="chat" />
+					<input type="radio" name="testradio" value="souris" />
+					<input type="radio" name="testradio" value="miaou" />
+				</td>
+			</tr>
+			<tr>
+				<td>Test checkbox 1</td>
+				<td><input type="checkbox" name="checkbox[a]" value="test" /></td>
+			</tr>
+			<tr>
+				<td>Test checkbox 2</td>
+				<td><input type="checkbox" name="checkbox[b]" value="test2" /></td>
+			</tr>
+			<tr>
+				<td>Test checkbox 3</td>
+				<td><input type="checkbox" name="checkbox[c]" /></td>
+			</tr>*}
+			<tr>
+				<td>Test old pswd</td>
+				<td><input type="password" name="testoldpswd" value="" required /></td>
+			</tr>
+			<tr>
+				<td>Test pswd</td>
+				<td><input type="password" name="testpswd" value="" required /></td>
+			</tr>
+			<tr>
+				<td>Test re pswd</td>
+				<td><input type="password" name="testpswd2" value="" required /></td>
+			</tr>
+			<tr>
+				<td colspan="4">
+					<input type="submit" value="Envoyer"/>
+				</td>
+			</tr>
+		</tbody>
+	</table>
+</form>

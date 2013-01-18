@@ -1,0 +1,23 @@
+<h2>Liste des 50 dernières tentatives de connection en tant que SU</h2>
+<table>
+	<thead>
+		<tr>
+			<th>Date</th>
+			<th>IP</th>
+			<th>Host</th>
+			<th>Port</th>
+			<th>Password</th>
+		</tr>
+	</thead>
+	<tbody>
+		{node::logList}
+		<tr{$param}>
+			<td>{$date}</td>
+			<td>{$ip}</td>
+			<td>{$host}</td>
+			<td>{$port}</td>
+			<td>{$password}</td>
+		</tr>
+		{/node::logList}
+	</tbody>
+</table>

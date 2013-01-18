@@ -1,0 +1,423 @@
+<?php
+/**
+ * Analyse une chaine de caractère envoyé par HeTemplate et réecrit les formulaires
+ * pour préparer les analyse lors de l'envoi par l'utilisateur
+ *
+ * Attention, utiliser cette class vide la variable $_POST de son contenue
+ * Attention, la variable de session HePOST sera réservé pour la trasmition
+ * Attention, Les session DOIVENT être initialisé AVANT cet objet
+ * ============================================================================
+ * Common usage
+ * ============================================================================
+ * en début de code :
+ * HePOST::init();
+ * Suite à l'utilisation de cette méthode, les paramètres envoyés en POST seront
+ * supprimé et stockés dans HePOST::_node.
+ * De fait, la variable $_POST sera remplacé par HePOST::_node pour simplifier
+ * l'écriture.
+ * 
+ * Pour tester si le formulaire correspond aux attentes :
+ * HePOST::test() => bool
+ * Aucun message d'erreur n'est renvoyé, les test DOIVENT être effectués par
+ * Javascript avant l'envoi du formulaire. Si un formulaire faux parvient ICI
+ * c'est signe d'une tentative de hack. Une note est ajouté dans HeTrace
+ * 
+ * Pour préparer l'envoi du formualaire :
+ * HePOST::prepare($xml) => string
+ * Le XML est préparé puis retourné une fois transformé pour le traitement
+ * via le plugin JS
+ * 
+ * Balises prise en charge dans le xml :
+ * <form method="AJAX">		: Désormais les reuète ajax sont distincte
+ * <input type="mail" />	: Restreint aux types de mails
+ * <input type="int" />	: Restreint aux intergers uniquement
+ * <input type="float" />	: Restreint aux flotants uniquement
+ * <input type="date" />	: Restreint aux dates, sont supporté les formats FR 
+ * et US selon la langue de l'utilisateur
+ * <input type="text" />	: Restreint aux string ... si on peu dire restreint
+ * <input type="password" />	: Restreint aux MDP
+ * <input type="confirmpassword" for="[id_input]" /> : Impose l'égalité entre des champs MDP
+ * <input type="hidden" />	: Champ caché habituel
+ * <input type="token" />	: Impose l'exactitude avec le token en session
+ * <checkbox selected>		: Cast les valeurs récupérés en booléens
+ * required					: Rend le champ obligatoire (non null, non vide)
+ * <select>					: enregistré pour le required
+ * <option type="*">		: fonctionne de la même manière que les type ci-dessus
+ * <radio type="*">			: fonctionne de la même manière que les type ci-dessus
+ * <input type="ajax">		: Indique que le formualire est récupéré par ajax
+ * <textarea>				: Lu pour maxlength et required
+ * Les champs text et textarea peuvent recevoir un paramètre maxlength
+ * 
+ * ============================================================================
+ * Note
+ * ============================================================================
+ * - Le formulaire se vera intégrer un champ suplémentaire indiquant son ID pour 
+ * la reconnaissance par HePOST. Un test effectué avec des données en POST
+ * sans cet ID renvera forcément FAUX
+ * 
+ * - La conséquence de l'utilisation de cette class est que pour déterminer
+ * le traitement post envoi dans le controleur il faut modifier la vue
+ * 
+ * - Cette class fonctionne selon le design pattern singleton
+ * 
+ * @author Joseph Lemoine - joseph.lemoine@gmail.com
+ * @version 2
+ */
+class HePOST
+{
+	/**
+	 * Instance de class
+	 * @var static
+	 */
+	private static $_instance;
+	
+	/**
+	 * Le formulaire est-il valide
+	 * @var bool
+	 */
+	private static $_formValid = 1;
+	
+	/**
+	 * Le formulaire est-it prêt pour les tests ?
+	 * @var bool
+	 */
+	private static $_testReady = 0;
+	
+	/**
+	 * Tableau de champs tel que présent dans le formulaire
+	 * @var type 
+	 */
+	private $_node = array();
+	
+	/**
+	 * Constructeur et clone privé pour garantir l'unicité du singleton
+	 */
+	private function __construct()
+	{
+		/* Copie systématique de l'objet en session */
+		$_SESSION["HePOST"] = &$this;
+	}
+	private function __clone() {}
+	
+	/**
+	 * Appel de class via singleton
+	 * @return static()
+	 */
+	public static function getInstance()
+	{
+		if(!empty($_SESSION["HePOST"]))
+			static::$_instance = $_SESSION["HePOST"];
+		
+		if(empty(static::$_instance))
+			static::$_instance = new static();
+		
+		return static::$_instance;
+	}
+	
+	public static function test($array = null)
+	{	
+		if(static::$_testReady)
+		{
+			HeTrace::addTrace("Test du formulaire ".$_POST["formID"], get_called_class());
+			$array = empty($array) ? $_POST : $array;
+
+			foreach($array AS $field => $val)
+			{
+				{
+					if(is_array($val))
+					{
+						static::test($val);
+					}
+					elseif(is_object($val))
+					{
+						if(!$val->test())
+						{
+							HeTrace::addTrace("Le champ ".$field." est faux !", get_called_class());
+							
+							static::$_formValid = 0;
+						}
+					}
+					else
+					{
+						static::$_formValid = 0;
+					}
+				}
+			}
+		}
+		else
+		{
+			static::$_formValid = 0;
+			HeTrace::addTrace("Le formulaire ".$_POST["formID"]." a été traité précédement", get_called_class());
+		}
+		
+		return static::$_formValid;
+	}
+	
+	public static function init()
+	{
+		if(!empty(static::getInstance()->_node["post"][$_POST["formID"]]))
+			static::getInstance()->setPostValue($_POST);
+		
+		$method = $_POST["sendMethod"];
+		
+		if(!empty($_POST["formID"]) &&
+			($method == "post" || $method == "ajax"))
+		{
+			/* Formulaires en post */
+			$formID = $_POST["formID"];
+			if(!empty(static::getInstance()->_node["post"][$formID]))
+			{
+				HeTrace::addTrace("Données récupérées depuis POST du formulaireID ".$_POST["formID"], get_called_class());
+				$_POST = static::getInstance()->_node["post"][$formID]->getTree();
+				
+				HeTrace::addTrace("Le formulaire ".$_POST["formID"]." est prêt pour les tests", get_called_class());
+				static::$_testReady = 1;
+			}
+		}
+		
+		HeTrace::addTrace("Destruction des nodes de type post innutilisés", get_called_class());
+		unset(static::getInstance()->_node["post"]);
+		
+		if(static::$_testReady == 1)
+			HeTrace::addTrace("Pret pour les tests", get_called_class());
+		else
+			HeTrace::addTrace("Test forcément faux, formulaire invalide", get_called_class());
+	}
+	
+	/**
+	 * Ajoute les valeurs en post dans le node correspondant
+	 * @param mixed $postArray
+	 * @param array $path 
+	 */
+	private function setPostValue($postArray, $path = array())
+	{
+		if(!empty($postArray))
+		{
+			foreach($postArray AS $name => $value)
+			{
+				if($name != "formID" && $name != "sendMethod")
+				{
+					$path[] = $name;
+					if(is_array($value))
+					{
+						$this->setPostValue($path, $value);
+					}
+					elseif(!empty($value))
+					{
+						$this->_node["post"][$_POST["formID"]]->setPostLeafValue($path, $value);
+						$path = array();
+					}
+				}
+			}
+		}
+	}
+	
+	/**
+	 * Analyse les formulaires présent dans la chaine envoyé et entregistre
+	 * les différents champs avec leur type dans $_node
+	 * Le tout est stocké dans une variable de session qui se charge de faire
+	 * la communication avec les autres pages
+	 * @param string	$xml	Page XHTML à traiter
+	 */
+	public function prepare(&$xml)
+	{
+		HeTrace::addTrace("Début de préparation des formulaires", get_called_class());
+
+		/* Recherche des formulaires */
+		$pattern = '#<form([^>]*)>(.*?)</form>#s';
+		preg_match_all($pattern, $xml, $matches);
+
+		/* Si on à bien des résultats */
+		if (!empty($matches[1]))
+		{
+			foreach($matches[1] AS $key => $value)
+			{
+				/* On récupère les paramètres du formulaire */
+				$param = explode(" ", $value);
+				
+				/* Récupération de la méthode d'envoi */
+				foreach($param AS $cat)
+				{
+					/* Récupération de la méthode */
+					if(substr($cat, 0, 6) == "method")
+						$method[$key] = strtolower(str_replace('"', "", str_replace('method=', "", $cat)));
+				}
+			}
+			
+			foreach($matches[2] AS $key => $form)
+			{
+				/* Génération de l'unique ID du formulaire */
+				$formID = md5(uniqid());
+				HeTrace::addTrace("Traitement du formulaire ID ".$formID, get_called_class());
+				
+				/* Préparation du node */
+				$this->_node[$method[$key]][$formID] = new HePOSTWalk("root");
+				
+				/* Analyse des noms de champs attendus  */
+				$this->_analyseName($form, $this->_node[$method[$key]][$formID]);
+				
+				/* Analyse des champs et de leurs type et attributs */
+				$this->_analyseField($form, $this->_node[$method[$key]][$formID]);
+				
+				
+				/* Ajout de la méthode dans le formulaire */
+				if(!empty($method[$key]))
+				{
+					$formHiddenFields = '<input type="hidden" name="sendMethod" value="'.$method[$key].'" />';
+					
+					if($method[$key] == "ajax")
+						$formParam = str_replace ('method="'.$method["$key"].'"', 'method="POST"', $matches[1][$key]);
+					else
+						$formParam = $matches[1][$key];
+				}
+				else
+				{
+					throw new Exception("Pas de method dans le formulaire !");
+				}
+				
+				/* Ajout du champ caché avec l'id du formulaire */
+				$formHiddenFields = $form.$formHiddenFields.'<input type="hidden" name="formID" value="'.$formID.'" />';
+				$xml = str_replace('<form'.$matches[1][$key].'>'.$form.'</form>', 
+						'<form'.$formParam.'>'.$formHiddenFields.'</form>', 
+						$xml);
+				
+				HeTrace::addTrace("Formulaires ".$formID." préparés", get_called_class());
+			}
+		}
+	}
+	
+	/**
+	 * Recherche tout les champs qui seront envoyé par post dans le forumalaire
+	 * et les stock dans $_node sous forme d'arboressence
+	 * @param string	$form	formulaire à traiter
+	 */
+	private function _analyseName(&$form, &$node)
+	{
+		/* Récupération des noms à traiter */
+		$pattern = '#name=["|\'](.*?)["|\']#s';
+		preg_match_all($pattern, $form, $matches);
+		
+		/* Si on à bien des nodes */
+		if (!empty($matches[1]))
+		{
+			/* Tranformation du namePath en array */
+			foreach($matches[1] AS $key => $namePath)
+				$node->addChild($this->_nameToArray($namePath));
+		}
+	}
+	
+	/**
+	 * Découpe le nom d'un champ sous forme de tableau
+	 * @param string $namePath	nom de la variable post sous forme name[sname][...]
+	 * @return array
+	 */
+	private function _nameToArray($namePath)
+	{
+		/* Transformation en chemin de type name/sname/ssname/... */
+		return explode("/", str_replace("]", "", str_replace("[", "/", $namePath)));
+	}
+	
+	/**
+	 * Analyse un formulaire pour récupérer les paramètres des divers
+	 * input, select, textaera ... et les envoi dans la feuille correspondante
+	 * @param string $form
+	 */
+	private function _analyseField(&$form, &$node)
+	{
+		/* Recherche des inputs */
+		$pattern = '#<input (.*?)/>#s';
+		preg_match_all($pattern, $form, $matches);
+
+		if(!empty($matches[1]))
+		{
+			foreach($matches[1] AS $param)
+			{
+				$this->_analyseData($node, $param);
+			}
+		}
+
+		/* Recherche des textarea */
+		$pattern = '#<textarea(.*?)>#s';
+		preg_match_all($pattern, $form, $matches);
+
+		if(!empty($matches[1]))
+		{
+			foreach($matches[1] AS $param)
+			{
+				$this->_analyseData($node, $param, "text");
+			}
+		}
+
+		/* Recherche des select */
+		$pattern = '#<select(.*?)>(.*?)</select>#s';
+		preg_match_all($pattern, $form, $matches);
+
+		if(!empty($matches[1]))
+		{
+			foreach($matches[1] AS $param)
+			{
+				$selectPath = $this->_analyseData($node, $param, "select");
+			}
+			foreach($matches[2] AS $param)
+			{
+//				$this->_analyseOption($param, $selectPath);
+			}
+		}
+	}
+	
+	/**
+	 * Analyse les paramètre d'un champ et les envoits à la feuille
+	 * correspondante
+	 * @param array $form	liste des feuilles
+	 * @param string $param	Liste des paramètres séprarés par un espace
+	 * @param type $forceType Type de champ forcé
+	 */
+	private function _analyseData(&$node, $param, $forceType = null)
+	{
+		/* Séparation des différenst types de données */
+		$param = explode(" ", $param);
+
+		if(!empty($param))
+		{
+			/* Initialisation */
+			$type = !empty($forceType) ? $forceType : "text";
+			$required = false;
+			$maxlength = 0;
+			$value = "";
+			$name = "";
+			
+			/* Analyse des paramètres */
+			foreach($param AS $cat)
+			{
+				if(substr($cat, 0, 4) == "name")
+				{
+					$name = str_replace('"', "", str_replace('name=', "", $cat));
+				}
+				if(substr($cat, 0, 4) == "type" && empty($forceType))
+				{
+					$type = str_replace('"', "", str_replace('type=', "", $cat));
+				}
+				if($cat == "required")
+				{
+					$required = true;
+				}
+				if(substr($cat, 0, 9) == "maxlength")
+				{
+					$maxlength = (INT)str_replace('"', "", str_replace('maxlength=', "", $cat));
+				}
+				if(substr($cat, 0, 5) == "value" && $is_select)
+				{
+					$value .= "[".str_replace("value=", "", str_replace('"', "", $cat));
+				}
+			}
+			
+			if(!empty($name))
+			{
+				$node->setLeafType($this->_nameToArray($name), $type);
+				$node->setLeafRequired($this->_nameToArray($name), (BOOL)$required);
+				$node->setLeafLength($this->_nameToArray($name), (INT)$maxlength);
+				$node->setLeafValue($this->_nameToArray($name), $value);
+			}
+		}
+	}
+}

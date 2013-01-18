@@ -1,0 +1,25 @@
+<?php
+$this->_param['listColSth'] = ':id, :label, :instant, :id_cat';
+$this->_param['listCol'] = 'id, label, instant, id_cat';
+$this->_param['listColT'] = 't.id, t.label, t.instant, t.id_cat';
+$this->_param['listColPrimary'] = 'id';
+$this->_param['listColTPrimary'] = 't.id';
+$this->_param['listColTWherePrimary'] = 'id = :id ';
+$this->_param['primary']['0'] = 'id';
+$this->_param['colsField']['1'] = 'id';
+$this->_param['colsField']['2'] = 'label';
+$this->_param['colsField']['3'] = 'instant';
+$this->_param['colsField']['4'] = 'id_cat';
+$this->_param['colsType']['1'] = 'int';
+$this->_param['colsType']['2'] = 'string';
+$this->_param['colsType']['3'] = 'date';
+$this->_param['colsType']['4'] = 'int';
+$this->_param['colsPosition']['id'] = '1';
+$this->_param['colsPosition']['label'] = '2';
+$this->_param['colsPosition']['instant'] = '3';
+$this->_param['colsPosition']['id_cat'] = '4';
+$this->_param['join']['cat']['col'] = 'id_cat';
+$this->_param['join']['cat']['target'] = 'cat';
+$this->_param['joinAlias']['chat']['col'] = 'id_cat';
+$this->_param['joinAlias']['chat']['target'] = 'cat';
+$this->_param['noJoin']['id_cat'] = 'chat';

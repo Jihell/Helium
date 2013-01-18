@@ -1,0 +1,9 @@
+RewriteEngine On
+
+# we skip all files with .something
+RewriteCond %{REQUEST_URI} \..+$
+RewriteCond %{REQUEST_URI} !\.html$
+RewriteRule .* - [L]
+
+# no, so we redirect to our front web controller
+RewriteRule ^(.*)$ index.php [QSA,L]

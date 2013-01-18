@@ -1,0 +1,22 @@
+/* 
+    Propriétés à réinitialisés pour toute les balises
+*/
+table
+{
+	width: 100%;
+}
+h1, h2, h3, h4, h5, h6
+{
+	margin: 0px 5px;
+	padding: 0px;
+}
+ul
+{
+	margin: 0px;
+	padding: 0px;
+}
+a, a:hover
+{
+	color: inherit;
+	text-decoration: inherit;
+}

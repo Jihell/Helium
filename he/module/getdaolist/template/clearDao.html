@@ -1,0 +1,12 @@
+<h2>Liste des DAO actuellement chargés :</h2>
+<ul>
+	{node::daolist}
+	<li class="HeDAOList ajaxCall" 
+		action="he/ajax/getDAOList" 
+		data="file={$daoName}" 
+		callback="obj.after(msg);obj.next().dialog({title: 'Détails du fichier de paramétrage de la DAO {$daoName}', minHeight: 300, minWidth: 700});">
+		{$daoName}
+	</li>
+	{/node::daolist}
+</ul>
+{@form/clearDao.html}
