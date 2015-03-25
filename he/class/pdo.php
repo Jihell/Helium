@@ -133,7 +133,7 @@ final class PDO extends \PDO {
 	 * @param	string	$query	requète à exécuter
 	 * @return	OBJ				PDOStatement
 	 */
-	public function prepare($statement)
+	public function prepare ($statement, array $driver_options = array())
 	{
 		$hash = crc32($statement);
 		
