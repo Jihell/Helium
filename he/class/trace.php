@@ -81,7 +81,7 @@ class Trace
 	private function __construct() {}
 	private function __clone() {}
 	
-	private function _getInstance()
+	private static function _getInstance()
 	{
 		if(!self::$_instance)
 			self::$_instance = new static();
